@@ -143,6 +143,12 @@
 #define OMAP3430_SR_ERRWEIGHT		0x04
 #define OMAP3430_SR_ERRMAXLIMIT		0x02
 
+/* Smart reflex notifiers */
+#define SR_NOTIFY_MCUDISACK		BIT(3)
+#define SR_NOTIFY_MCUBOUND		BIT(2)
+#define SR_NOTIFY_MCUVALID		BIT(1)
+#define SR_NOTIFY_MCUACCUM		BIT(0)
+
 enum omap_sr_calibration_period {
 	AVS_CALIBRATION_BOOT = 1,
 	AVS_CALIBRATION_PERIODIC,

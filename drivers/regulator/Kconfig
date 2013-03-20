@@ -504,5 +504,12 @@ config REGULATOR_AS3711
 	  This driver provides support for the voltage regulators on the
 	  AS3711 PMIC
 
+config REGULATOR_ABB
+	bool "TI Adaptive Body Bias"
+	depends on (ARCH_OMAP3 || ARCH_OMAP4 || SOC_OMAP5)
+	default y
+	help
+	  This driver supports ABB voltage regulators
+
 endif
 

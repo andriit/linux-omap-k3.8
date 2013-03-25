@@ -19,6 +19,7 @@
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/opp.h>
+#include <linux/debugfs.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
@@ -524,6 +525,72 @@ static struct regulator_ops omap_abb_reg_ops = {
 };
 
 /*
+ * omap_abb_info_dump() - ABB debug dump
+ *
+ * Returns 0
+ */
+static int omap_abb_info_dump(struct seq_file *sf, void *unused)
+{
+	const struct omap_abb *abb = (struct omap_abb *)sf->private;
+	const struct omap_abb_opp_sel *opp_sel_table = abb->opp_sel_table;
+	u32 abb_ctrl, abb_setup;
+
+	if (!abb) {
+		seq_printf(sf, "No ABB defined\n");
+		goto err;
+	}
+
+	seq_printf(sf, "******** %s ********\n", abb->rdesc.name);
+	abb_ctrl =  omap_abb_readl(abb, abb->data.control_offs);
+	abb_setup = omap_abb_readl(abb, abb->data.setup_offs);
+	seq_printf(sf, "Enabled\t->\t%d\n"
+		   "Voltage\t->\t%u\n"
+		   "opp_sel\t->\t%u\n"
+		   "FBB mode\t->\t%u\n"
+		   "RBB mode\t->\t%u\n"
+		   "PRM_LDO_ABB_XXX_SETUP\t->\t0x%08x\n"
+		   "PRM_LDO_ABB_XXX_CTRL\t->\t0x%08x\n",
+		   !!(abb_setup & abb->data.sr2en_mask),
+		   abb->current_volt,
+		   abb->opp_sel,
+		   !!(abb_setup & abb->data.fbb_sel_mask),
+		   !!(abb_setup & abb->data.rbb_sel_mask),
+		   abb_setup,
+		   abb_ctrl);
+
+	seq_printf(sf, "opp_sel table\n");
+	while (opp_sel_table->volt) {
+		seq_printf(sf, "Voltage (%u) ABB (%u) efuse_vset (0x%x)\n",
+			   opp_sel_table->volt,
+			   opp_sel_table->opp_sel,
+			   opp_sel_table->efuse_vset);
+
+		opp_sel_table++;
+	}
+	seq_printf(sf, "*******************************************\n\n");
+
+err:
+	return 0;
+}
+
+/*
+ * omap_abb_fops_open() - debugfs "open" callback
+ *
+ * Returns 0 on success or error code otherwise
+ */
+static int omap_abb_fops_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, omap_abb_info_dump, inode->i_private);
+}
+
+static const struct file_operations omap_abb_debug_fops = {
+	.open = omap_abb_fops_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+/*
  * omap_abb_init_timings() - Initialize ABB timings
  * @dev:	device pointer to ABB device
  * @abb:	pointer to the ABB instance
@@ -593,7 +660,6 @@ static int __init omap_abb_init_timings(struct device *dev,
 	clk_put(sys_clk);
 	return 0;
 }
-
 /*
  * omap_abb_probe() - Initialize an ABB ldo instance
  * @pdev: ABB platform device
@@ -716,6 +782,10 @@ static int __init omap_abb_probe(struct platform_device *pdev)
 		ret = PTR_ERR(rdev);
 		goto err;
 	}
+
+	/* create debugfs entry */
+	debugfs_create_file(dev_name(&pdev->dev), S_IRUGO, NULL,
+			    abb, &omap_abb_debug_fops);
 
 	return 0;
 

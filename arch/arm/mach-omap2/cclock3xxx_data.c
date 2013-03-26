@@ -3494,6 +3494,7 @@ static struct omap_clk omap3xxx_clks[] = {
 	CLK(NULL,	"timer_32k_ck",	&omap_32k_fck,  CK_3XXX),
 	CLK(NULL,	"timer_sys_ck",	&sys_ck,	CK_3XXX),
 	CLK(NULL,	"cpufreq_ck",	&dpll1_ck,	CK_3XXX),
+	CLK("483072f0.regulator-abb1",	"abb_sys_ck",	&sys_ck,	CK_36XX),
 };
 
 static const char *enable_init_clks[] = {

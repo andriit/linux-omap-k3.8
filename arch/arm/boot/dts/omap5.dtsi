@@ -83,6 +83,45 @@
 		};
 	};
 
+	abb_mpu: regulator-abb1 {
+		compatible = "ti,omap5-abb";
+		regulator-name = "abb_mpu";
+		regulator-min-microvolt = <880000>;
+		regulator-max-microvolt = <1260000>;
+		regulator-always-on;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x4ae07cdc 0x8>,
+		      <0x4ae06014 0x4>;
+		ti,tranxdone_status_mask = <0x80>;
+		operating-points = <
+			/* uV   ABB */
+			880000	0
+			1060000	1
+			1250000	1
+			1260000	1
+		>;
+	};
+
+	abb_iva: regulator-abb2 {
+		compatible = "ti,omap5-abb";
+		regulator-name = "abb_iva";
+		regulator-min-microvolt = <880000>;
+		regulator-max-microvolt = <1120000>;
+		regulator-always-on;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x4ae07ce4 0x8>,
+		      <0x4ae06010 0x4>;
+		ti,tranxdone_status_mask = <0x80000000>;
+		operating-points = <
+			/* uV   ABB */
+			880000	0
+			1025000	0
+			1120000	0
+		>;
+	};
+
 	/*
 	 * XXX: Use a flat representation of the OMAP3 interconnect.
 	 * The real OMAP interconnect network is quite complex.

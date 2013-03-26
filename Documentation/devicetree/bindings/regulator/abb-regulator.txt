@@ -1,0 +1,42 @@
+ABB regulator for OMAP platforms
+
+Required properties :
+- compatible:
+  - "ti,omap36xx-abb" for OMAP36XX
+  - "ti,omap4-abb" for OMAP4
+  - "ti,omap5-abb" for OMAP5
+
+- regulator-min-microvolt: lowest OPP voltage
+- regulator-max-microvolt: highest OPP voltage
+- regulator-always-on: ABB should be always on
+- reg: address range defined in TRM
+- ti,tranxdone_status_mask: ABB transition state mask
+- ti,abb_opp_sel: An array of 3-tuples items, and each item consists
+  of voltage, ABB opp_sel, corresponding efuse offset
+	volt: voltage in uV
+	opp_sel: 0-bypass, 1-FBB, 2-RBB
+	efuse: offset, defined in TRM
+
+Examples :
+abb_mpu: regulator-abb1 {
+	compatible = "ti,omap5-abb";
+	regulator-name = "abb_mpu";
+	regulator-min-microvolt = <880000>;
+	regulator-max-microvolt = <1260000>;
+	regulator-always-on;
+	#address-cells = <1>;
+	#size-cells = <1>;
+	reg = <0x4ae07cdc 0x8>,
+	      <0x4ae06014 0x4>,
+	      <0x4a0021ac 0x32>,
+	      <0x4ae0C318 0x4>;
+	reg-names = "control", "txdone", "efuse", "ldovbb";
+	ti,tranxdone_status_mask = <0x80>;
+	ti,abb_opp_sel = <
+		/* uV   ABB	efuse */
+		880000	0	0x4
+		1060000	1	0x8
+		1250000	1	0x10
+		1260000	1	0x14
+	>;
+};

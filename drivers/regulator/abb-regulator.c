@@ -356,6 +356,8 @@ static int omap_abb_set_supplier_voltage(const struct omap_abb *abb,
 		dev_err(abb->dev,
 			"%s: failed to scale supply ret (%d)\n",
 			__func__, ret);
+	else
+		dev_err(abb->dev, "\n\n[:) :) :)] %s supply SCALE SUCCESS\n\n", __func__);
 
 	return ret;
 }
@@ -680,8 +682,11 @@ static int __init omap_abb_probe(struct platform_device *pdev)
 
 	/* get supply regulator */
 	abb->supply_reg = regulator_get(&pdev->dev, "avs");
-	if (IS_ERR(abb->supply_reg))
+	if (IS_ERR(abb->supply_reg)) {
+		dev_err(&pdev->dev, "\n\n[XXXXXXXXXX] %s supply get failed\n\n", __func__);
 		abb->supply_reg = NULL;
+	} else
+		dev_err(&pdev->dev, "\n\n[:) :) :)] %s supply get SUCCESS \n\n", __func__);
 
 	/* create debugfs entry */
 	debugfs_create_file(dev_name(&pdev->dev), S_IRUGO, NULL,
@@ -707,4 +712,4 @@ static int __init omap_abb_driver_init(void)
 {
 	return platform_driver_probe(&omap_abb_driver, omap_abb_probe);
 }
-subsys_initcall(omap_abb_driver_init);
+late_initcall(omap_abb_driver_init);

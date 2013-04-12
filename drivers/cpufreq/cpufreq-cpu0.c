@@ -206,7 +206,7 @@ static int cpu0_cpufreq_driver_init(void)
 
 	cpu_reg = regulator_get(cpu_dev, "cpu0");
 	if (IS_ERR(cpu_reg)) {
-		pr_warn("failed to get cpu0 regulator\n");
+		pr_warn("\n\n[YYYYYY] failed to get cpu0 regulator\n\n");
 		cpu_reg = NULL;
 	}
 

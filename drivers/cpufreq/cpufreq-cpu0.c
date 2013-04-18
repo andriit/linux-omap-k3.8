@@ -210,6 +210,12 @@ static int cpu0_cpufreq_driver_init(void)
 		cpu_reg = NULL;
 	}
 
+	ret = regulator_enable(cpu_reg);
+	if (ret) {
+		pr_warn("\n\n[YYYYYY] failed to ENABLE cpu_reg\n\n");
+		cpu_reg = NULL;
+	}
+
 	ret = of_init_opp_table(cpu_dev);
 	if (ret) {
 		pr_err("failed to init OPP table: %d\n", ret);

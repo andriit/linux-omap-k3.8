@@ -88,7 +88,6 @@
 		regulator-name = "abb_mpu";
 		regulator-min-microvolt = <880000>;
 		regulator-max-microvolt = <1260000>;
-		regulator-always-on;
 		#address-cells = <1>;
 		#size-cells = <1>;
 		reg = <0x4ae07cdc 0x8>,
@@ -109,7 +108,6 @@
 		regulator-name = "abb_iva";
 		regulator-min-microvolt = <880000>;
 		regulator-max-microvolt = <1120000>;
-		regulator-always-on;
 		#address-cells = <1>;
 		#size-cells = <1>;
 		reg = <0x4ae07ce4 0x8>,

@@ -426,7 +426,7 @@ static int omap_abb_reg_set_voltage(struct regulator_dev *rdev, int min_uv,
 static int omap_abb_reg_get_voltage(struct regulator_dev *rdev)
 {
 	struct omap_abb *abb = rdev_get_drvdata(rdev);
-	return abb->current_volt;
+	return 1;
 }
 
 static const struct of_device_id __initdata omap_abb_of_match[] = {
@@ -437,9 +437,24 @@ static const struct of_device_id __initdata omap_abb_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, omap_abb_of_match);
 
+static unsigned int omap_abb_reg_get_optimum_mode (
+					struct regulator_dev *rdev,
+					int input_uv,
+					int output_uv, int load_uA)
+{
+	return REGULATOR_MODE_NORMAL;
+}
+
+static int omap_abb_reg_set_mode(struct regulator_dev *rdev, unsigned int mode)
+{
+	return 0;
+}
+
 static struct regulator_ops omap_abb_reg_ops = {
 	.set_voltage	= omap_abb_reg_set_voltage,
 	.get_voltage	= omap_abb_reg_get_voltage,
+	.get_optimum_mode	= omap_abb_reg_get_optimum_mode,
+	.set_mode = omap_abb_reg_set_mode,
 };
 
 /*
@@ -657,11 +672,13 @@ static int __init omap_abb_probe(struct platform_device *pdev)
 		goto err;
 
 	/* create ABB regulator */
+	abb->rdesc.supply_name = "avs";
 	abb->rdesc.name = dev_name(&pdev->dev);
 	abb->rdesc.type = REGULATOR_VOLTAGE;
 	abb->rdesc.ops = &omap_abb_reg_ops;
 	abb->rdesc.owner = THIS_MODULE;
 
+	initdata->constraints.valid_ops_mask |= REGULATOR_CHANGE_DRMS;
 	config.init_data = initdata;
 	config.dev = &pdev->dev;
 	config.driver_data = abb;

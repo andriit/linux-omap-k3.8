@@ -659,8 +659,10 @@ static void drms_uA_update(struct regulator_dev *rdev)
 
 	/* get input voltage */
 	input_uV = 0;
-	if (rdev->supply)
+	if (rdev->supply) {
+		pr_err("\n\n<SSSSSSS> %s  %s n\n", __func__, rdev->desc->name);
 		input_uV = regulator_get_voltage(rdev->supply);
+	}
 	if (input_uV <= 0)
 		input_uV = rdev->constraints->input_uV;
 	if (input_uV <= 0)
@@ -3464,6 +3466,7 @@ regulator_register(const struct regulator_desc *regulator_desc,
 
 		/* Enable supply if rail is enabled */
 		if (_regulator_is_enabled(rdev)) {
+			pr_err("\n\n<QQQQQQQQQ> %s  %s n\n", __func__, rdev->desc->name);
 			ret = regulator_enable(rdev->supply);
 			if (ret < 0)
 				goto scrub;

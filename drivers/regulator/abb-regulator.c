@@ -39,6 +39,11 @@
 #define ABB_ACTIVE_RBB_SEL_MASK		(0x1 << 1)
 #define ABB_SR2_WTCNT_VALUE_MASK	(0xff << 8)
 
+#define ABB_FUSE_VSET_MASK		(0x1F << 24)
+#define ABB_FUSE_ENABLE_MASK		(0x1 << 29)
+#define ABB_LDOVBBMPU_MUX_CTRL_MASK	(0x1 << 10)
+#define ABB_LDOVBBMPU_VSET_OUT_MASK	(0x1f << 0)
+
 /*
  * struct omap_abb_data - common data for each instance of ABB ldo
  *
@@ -67,6 +72,19 @@ struct omap_abb_data {
 };
 
 /*
+ * struct omap_abb_opp_sel - ABB opp_sel related data
+ *
+ * @volt:	nominal voltage
+ * @opp_sel:	one of FBB/RBB/Bypass values
+ * @efuse_vset:	vset retrieved from corresponding EFUSE register
+ */
+struct omap_abb_opp_sel {
+	u32 volt;
+	u32 opp_sel;
+	u32 efuse_vset;
+};
+
+/*
  * struct omap_abb - ABB ldo instance
  *
  * @control:	memory mapped ABB registers
@@ -81,13 +99,14 @@ struct omap_abb_data {
 struct omap_abb {
 	void __iomem	*control;
 	void __iomem	*txdone;
-	struct device	*dev;
+	void __iomem	*efuse;
+	void __iomem	*ldovbb;
 	u32		txdone_mask;
 	u32		opp_sel;
 	u32		current_volt;
 	struct omap_abb_data	data;
-	struct regulator	*supply_reg;
 	struct regulator_desc   rdesc;
+	struct omap_abb_opp_sel *opp_sel_table;
 };
 
 static const struct omap_abb_data __initdata omap36xx_abb_data = {
@@ -199,8 +218,8 @@ static int omap_abb_wait_tranx(const struct omap_abb *abb)
 	}
 
 	if (timeout >= ABB_TRANXDONE_TIMEOUT) {
-		dev_warn(abb->dev, "%s: ABB TRANXDONE timeout=(%d)\n",
-			 __func__, timeout);
+		pr_warn("%s: %s: ABB TRANXDONE timeout=(%d)\n",
+			__func__, abb->rdesc.name, timeout);
 		return -ETIMEDOUT;
 	}
 	return 0;
@@ -231,11 +250,128 @@ static int omap_abb_clear_tranx(const struct omap_abb *abb)
 	}
 
 	if (timeout >= ABB_TRANXDONE_TIMEOUT) {
-		dev_warn(abb->dev, "%s: ABB TRANXDONE timeout=(%d)\n",
-			 __func__, timeout);
+		pr_warn("%s: %s: ABB TRANXDONE timeout=(%d)\n",
+			__func__, abb->rdesc.name, timeout);
 		return -ETIMEDOUT;
 	}
 	return 0;
+}
+
+/**
+ * omap_abb_lookup_oppsel() - Lookups for opp_sel for corresponding voltage
+ * @abb:	pointer to the abb instance
+ * @volt:	voltage used for lookup
+ *
+ * Returns ABB opp_sel entry on success or NULL otherwise
+ */
+static const struct omap_abb_opp_sel *omap_abb_lookup_opp_sel(
+					const struct omap_abb *abb, u32 volt)
+{
+	const struct omap_abb_opp_sel *opp_sel_table = abb->opp_sel_table;
+	while (opp_sel_table->volt) {
+		if (opp_sel_table->volt == volt)
+			return opp_sel_table;
+
+		opp_sel_table++;
+	}
+
+	return NULL;
+}
+
+/**
+ * omap_abb_init_oppsel_table() - Initialize ABB opp table from device tree
+ * @dev:	device pointer used to lookup device of_node
+ * @abb:	pointer to the abb instance
+ *
+ * Returns 0 on success or error code otherwise
+ */
+static int omap_abb_init_oppsel_table(struct device *dev, struct omap_abb *abb)
+{
+	const struct property *prop;
+	const __be32 *opp_sel_val;
+	int num_values;
+	u32 i;
+
+	prop = of_find_property(dev->of_node, "ti,abb_opp_sel", NULL);
+	if (!prop)
+		return -ENODEV;
+
+	if (!prop->value)
+		return -ENODATA;
+
+	/*
+	 * Each opp_sel is a set of tuples consisting of voltage and
+	 * ABB opp_sel like <voltage-uV opp_sel>.
+	 */
+	num_values = prop->length / sizeof(u32);
+	if (!num_values || (num_values % 3)) {
+		dev_err(dev, "%s: Invalid ABB opp_sel list\n", __func__);
+		return -EINVAL;
+	}
+
+	num_values /= 3;
+	abb->opp_sel_table =
+		devm_kzalloc(dev,
+			     sizeof(struct omap_abb_opp_sel) * (num_values + 1),
+			     GFP_KERNEL);
+
+	if (!abb->opp_sel_table) {
+		dev_err(dev, "%s: Can't allocate ABB opp_sel table\n",
+			__func__);
+		return -ENOMEM;
+	}
+
+	opp_sel_val = prop->value;
+	for (i = 0; i < num_values; i++) {
+		u32 efuse_val, efuse_offs;
+		abb->opp_sel_table[i].volt = be32_to_cpup(opp_sel_val++);
+		abb->opp_sel_table[i].opp_sel = be32_to_cpup(opp_sel_val++);
+
+		efuse_offs = be32_to_cpup(opp_sel_val++);
+
+		if (!abb->efuse)
+			continue;
+
+		efuse_val = readl(abb->efuse + efuse_offs);
+		if (efuse_val & ABB_FUSE_ENABLE_MASK) {
+			abb->opp_sel_table[i].opp_sel = OMAP_ABB_FAST_OPP;
+			abb->opp_sel_table[i].efuse_vset =
+				(efuse_val & ABB_FUSE_VSET_MASK) >>
+				 __ffs(ABB_FUSE_VSET_MASK);
+		}
+	}
+
+	return 0;
+}
+
+/**
+ * omap_abb_set_ldovbb() - program LDOVBB register
+ * @dev:	device pointer used to lookup device of_node
+ * @opp_sel:	one of FBB/RBB/Bypass
+ * @vset:	vset value retrieved from EFUSE
+ *
+ * Returns 0 on success or error code otherwise
+ */
+static void omap_abb_set_ldovbb(const struct omap_abb *abb, u32 opp_sel,
+				u32 vset)
+{
+	u32 val;
+
+	if (!abb->ldovbb)
+		return;
+
+	val = readl(abb->ldovbb);
+	val &= ~(ABB_LDOVBBMPU_MUX_CTRL_MASK | ABB_LDOVBBMPU_VSET_OUT_MASK);
+
+	switch (opp_sel) {
+	case OMAP_ABB_SLOW_OPP:
+	case OMAP_ABB_FAST_OPP:
+		val |= ABB_LDOVBBMPU_MUX_CTRL_MASK;
+		val |= vset << __ffs(ABB_LDOVBBMPU_VSET_OUT_MASK);
+		break;
+	}
+
+	writel(val, abb->ldovbb);
 }
 
 /**
@@ -249,25 +385,20 @@ static int omap_abb_clear_tranx(const struct omap_abb *abb)
  */
 static int omap_abb_set_opp(struct omap_abb *abb, int volt)
 {
-	u32 opp_sel = 0;
-	struct opp *opp = NULL;
 	const struct omap_abb_data *data = &abb->data;
+	const struct omap_abb_opp_sel *abb_opp = NULL;
+	u32 new_opp_sel = 0;
 	int ret = 0;
 
-	/* Use common OPP API to retrieve ABB sel */
-	rcu_read_lock();
-	opp = opp_find_freq_exact(abb->dev, volt * 1000, true);
-	rcu_read_unlock();
-
-	if (IS_ERR(opp)) {
-		ret = PTR_ERR(opp);
+	abb_opp = omap_abb_lookup_opp_sel(abb, volt);
+	if (!abb_opp) {
+		ret = -EINVAL;
 		goto out;
 	}
 
-	opp_sel = opp_get_voltage(opp);
-
+	new_opp_sel = abb_opp->opp_sel;
 	/* bail early if no transition is necessary */
-	if (opp_sel == abb->opp_sel)
+	if (new_opp_sel == abb->opp_sel)
 		goto out;
 
 	/* clear interrupt status */
@@ -276,7 +407,7 @@ static int omap_abb_set_opp(struct omap_abb *abb, int volt)
 		goto out;
 
 	/* program the setup register */
-	switch (opp_sel) {
+	switch (new_opp_sel) {
 	case OMAP_ABB_NOMINAL_OPP:
 		omap_abb_rmw(abb,
 			     data->fbb_sel_mask | data->rbb_sel_mask,
@@ -298,15 +429,18 @@ static int omap_abb_set_opp(struct omap_abb *abb, int volt)
 	default:
 		/* Should have never been here! */
 		WARN_ONCE(1, "%s: opp_sel %d!!!\n",
-			  __func__, opp_sel);
+			  __func__, new_opp_sel);
 		ret = -EINVAL;
 		goto out;
 	}
 
 	/* program next state of ABB ldo */
 	omap_abb_rmw(abb, data->opp_sel_mask,
-		     opp_sel << __ffs(data->opp_sel_mask),
+		     new_opp_sel << __ffs(data->opp_sel_mask),
 		     data->control_offs);
+
+	/* obligatory for OMAP5+ */
+	omap_abb_set_ldovbb(abb, new_opp_sel, abb_opp->efuse_vset);
 
 	/* initiate ABB ldo change */
 	omap_abb_rmw(abb, data->opp_change_mask,
@@ -324,37 +458,12 @@ static int omap_abb_set_opp(struct omap_abb *abb, int volt)
 		goto out;
 
 	/* track internal state */
-	abb->opp_sel = opp_sel;
+	abb->opp_sel = new_opp_sel;
 
 out:
 	if (ret)
-		dev_warn(abb->dev, "%s: failed to scale: opp_sel=%d (%d)\n",
-			 __func__, opp_sel, ret);
-
-	return ret;
-}
-
-/**
- * omap_abb_set_supplier_voltage() - scales supplier voltage
- * @abb:	pointer to the ABB instance
- * @min_uv:	target minimum voltage
- * @max_uv:	target maximum voltage
- *
- * Returns 0 on success, or error code otherwise.
- */
-static int omap_abb_set_supplier_voltage(const struct omap_abb *abb,
-					 int min_uv, int max_uv)
-{
-	int ret = 0;
-
-	if (!abb->supply_reg)
-		return ret;
-
-	ret = regulator_set_voltage(abb->supply_reg, min_uv, max_uv);
-	if (ret)
-		dev_err(abb->dev,
-			"%s: failed to scale supply ret (%d)\n",
-			__func__, ret);
+		pr_warn("%s: %s: failed to scale: opp_sel=%d (%d)\n",
+			__func__, abb->rdesc.name, new_opp_sel, ret);
 
 	return ret;
 }
@@ -378,32 +487,7 @@ static int omap_abb_reg_set_voltage(struct regulator_dev *rdev, int min_uv,
 	if (abb->current_volt == min_uv)
 		return 0;
 
-	/*
-	 * handle chain regulator
-	 *
-	 * 1) if OPP scales from low to high order of scaling is the following:
-	 * - scale voltage
-	 * - set ABB mode
-	 * - scale rate
-	 *
-	 * For this function it means, if regulator is linked to chain,
-	 * supplier (which is normally AVS) need to be scaled first.
-	 * Sequence will look like
-	 *
-	 * AVS -> Voltage scale -> ABB set mode -> Freq scale
-	 *
-	 * 2) if OPP scales from high to low order is opposite:
-	 *
-	 * Freq scale -> ABB set mode -> AVS -> Voltage scale
-	 */
-	if (min_uv > abb->current_volt) {
-		ret |= omap_abb_set_supplier_voltage(abb, min_uv, max_uv);
-		ret |= omap_abb_set_opp(abb, min_uv);
-	} else {
-		ret |= omap_abb_set_opp(abb, min_uv);
-		ret |= omap_abb_set_supplier_voltage(abb, min_uv, max_uv);
-	}
-
+	ret = omap_abb_set_opp(abb, min_uv);
 	if (ret)
 		dev_err(rdev_get_dev(rdev),
 			"%s: error (%d) min_uv (%d) max_uv (%d)\n",
@@ -441,11 +525,13 @@ static struct regulator_ops omap_abb_reg_ops = {
 
 /*
  * omap_abb_init_timings() - Initialize ABB timings
+ * @dev:	device pointer to ABB device
  * @abb:	pointer to the ABB instance
  *
  * Returns 0 on success or error code otherwise
  */
-static int __init omap_abb_init_timings(struct omap_abb *abb)
+static int __init omap_abb_init_timings(struct device *dev,
+					struct omap_abb *abb)
 {
 	struct clk *sys_clk = NULL;
 	u32 sys_clk_rate, sr2_wt_cnt_val, clock_cycles, abb_sel;
@@ -473,7 +559,7 @@ static int __init omap_abb_init_timings(struct omap_abb *abb)
 	 * "settling time" by 10 such that the final result is the one we want.
 	 */
 
-	sys_clk = clk_get(abb->dev, "abb_sys_ck");
+	sys_clk = clk_get(dev, "abb_sys_ck");
 	if (IS_ERR_OR_NULL(sys_clk))
 		return -ENODEV;
 
@@ -542,10 +628,9 @@ static int __init omap_abb_probe(struct platform_device *pdev)
 	}
 
 	abb->data = *((struct omap_abb_data *)match->data);
-	abb->dev = &pdev->dev;
 
 	/* map ABB resources */
-	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	mem = platform_get_resource_byname(pdev, IORESOURCE_MEM, "control");
 	if (!mem) {
 		ret = -ENODEV;
 		goto err;
@@ -557,7 +642,7 @@ static int __init omap_abb_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	mem = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	mem = platform_get_resource_byname(pdev, IORESOURCE_MEM, "txdone");
 	if (!mem) {
 		ret = -ENODEV;
 		goto err;
@@ -570,6 +655,28 @@ static int __init omap_abb_probe(struct platform_device *pdev)
 		goto err;
 	}
 
+	/* optional resource */
+	mem = platform_get_resource_byname(pdev, IORESOURCE_MEM, "efuse");
+	if (mem) {
+		abb->efuse = devm_ioremap_nocache(&pdev->dev, mem->start,
+					  resource_size(mem));
+		if (!abb->efuse) {
+			ret = -ENOMEM;
+			goto err;
+		}
+	}
+
+	/* optional resource */
+	mem = platform_get_resource_byname(pdev, IORESOURCE_MEM, "ldovbb");
+	if (mem) {
+		abb->ldovbb = devm_ioremap_nocache(&pdev->dev, mem->start,
+						   resource_size(mem));
+		if (!abb->ldovbb) {
+			ret = -ENOMEM;
+			goto err;
+		}
+	}
+
 	/* read device tree properties */
 	ret = of_property_read_u32(pdev->dev.of_node,
 				   "ti,tranxdone_status_mask",
@@ -577,8 +684,13 @@ static int __init omap_abb_probe(struct platform_device *pdev)
 	if (ret)
 		goto err;
 
-	/* init own OPP table for ABB */
-	ret = of_init_opp_table(&pdev->dev);
+	/* init ABB opp_sel table */
+	ret = omap_abb_init_oppsel_table(&pdev->dev, abb);
+	if (ret)
+		goto err;
+
+	/* init ABB time cycles */
+	ret = omap_abb_init_timings(&pdev->dev, abb);
 	if (ret)
 		goto err;
 
@@ -604,16 +716,6 @@ static int __init omap_abb_probe(struct platform_device *pdev)
 		ret = PTR_ERR(rdev);
 		goto err;
 	}
-
-	/* init ABB time cycles */
-	ret = omap_abb_init_timings(abb);
-	if (ret)
-		goto err;
-
-	/* get supply regulator */
-	abb->supply_reg = regulator_get(&pdev->dev, "avs");
-	if (IS_ERR(abb->supply_reg))
-		abb->supply_reg = NULL;
 
 	return 0;
 

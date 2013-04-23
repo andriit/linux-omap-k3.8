@@ -36,7 +36,7 @@
 	cpus {
 		cpu@0 {
 			compatible = "arm,cortex-a15";
-			cpu0-supply = <&abb_mpu>;
+			cpu0-supply = <&smps123_reg>;
 			operating-points = <
 				/* kHz    uV */
 				/* Only for Nominal Samples */

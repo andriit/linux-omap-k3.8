@@ -41,7 +41,6 @@
 /* sr_list contains all the instances of smartreflex module */
 static LIST_HEAD(sr_list);
 
-static struct omap_sr_class_data *sr_class;
 static struct omap_sr_pmic_data *sr_pmic_data;
 static struct dentry		*sr_dbg_dir;
 
@@ -271,13 +270,6 @@ static void sr_set_clk_length(struct omap_sr *sr)
 
 static void sr_start_vddautocomp(struct omap_sr *sr)
 {
-	if (!sr_class) {
-		dev_warn(&sr->pdev->dev,
-			"%s: smartreflex class driver not registered\n",
-			__func__);
-		return;
-	}
-
 	if (sr_init_algs(sr)) {
 		dev_err(&sr->pdev->dev,
 			"%s: SR algorithm initialization failed\n",
@@ -297,13 +289,6 @@ static void sr_start_vddautocomp(struct omap_sr *sr)
 
 static void sr_stop_vddautocomp(struct omap_sr *sr)
 {
-	if (!sr_class) {
-		dev_warn(&sr->pdev->dev,
-			"%s: smartreflex class driver not registered\n",
-			__func__);
-		return;
-	}
-
 	if (sr->autocomp_active) {
 		sr->stop_calibration(sr);
 		sr->volt_reset(sr);
@@ -950,42 +935,6 @@ int sr_notifier_control(struct omap_sr *sr, bool enable)
 }
 
 /**
- * sr_register_class() - API to register a smartreflex class parameters.
- * @class_data:	The structure containing various sr class specific data.
- *
- * This API is to be called by the smartreflex class driver to register itself
- * with the smartreflex driver during init. Returns 0 on success else the
- * error value.
- */
-int sr_register_class(struct omap_sr_class_data *class_data)
-{
-	struct omap_sr *sr_info;
-
-	if (!class_data) {
-		pr_warning("%s:, Smartreflex class data passed is NULL\n",
-			__func__);
-		return -EINVAL;
-	}
-
-	if (sr_class) {
-		pr_warning("%s: Smartreflex class driver already registered\n",
-			__func__);
-		return -EBUSY;
-	}
-
-	sr_class = class_data;
-
-	/*
-	 * Call into late init to do intializations that require
-	 * both sr driver and sr class driver to be initiallized.
-	 */
-	list_for_each_entry(sr_info, &sr_list, node)
-		sr_late_init(sr_info);
-
-	return 0;
-}
-
-/**
  * omap_sr_enable() -  API to enable SR clocks and to call into the
  *			registered smartreflex class enable API.
  * @voltdm:	VDD pointer to which the SR module to be configured belongs to.
@@ -1526,12 +1475,10 @@ static int __init omap_sr_probe(struct platform_device *pdev)
 	 * Call into late init to do intializations that require
 	 * both sr driver and sr class driver to be initiallized.
 	 */
-	if (sr_class) {
-		ret = sr_late_init(sr_info);
-		if (ret) {
-			pr_warning("%s: Error in SR late init\n", __func__);
-			goto err_list_del;
-		}
+	ret = sr_late_init(sr_info);
+	if (ret) {
+		dev_err(&pdev->dev, "%s: Error in SR late init\n", __func__);
+		goto err_list_del;
 	}
 
 	dev_info(&pdev->dev, "%s: SmartReflex driver initialized\n", __func__);

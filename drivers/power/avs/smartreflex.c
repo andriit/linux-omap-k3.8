@@ -334,26 +334,43 @@ static void sr_v2_disable(struct omap_sr *sr)
 	sr_write_reg(sr, IRQENABLE_CLR, IRQENABLE_MCUDISABLEACKINT);
 }
 
-static struct omap_sr_nvalue_table *sr_retrieve_nvalue_row(
-				struct omap_sr *sr, u32 efuse_offs)
+/* Public Functions */
+
+/**
+ * sr_retrieve_nvalue_row - retrive table for specified voltage
+ * @sr:			SR module
+ * @volt:		nominal voltage, used as search key
+ *
+ * Returns table entry in case of success, or NULL in case
+ * of failure
+ */
+struct omap_sr_nvalue_table *sr_retrieve_nvalue_row(
+				struct omap_sr *sr, u32 volt)
 {
 	int i;
 
+	if (!sr) {
+		pr_err("%s: NULL omap_sr from %pF\n", __func__,
+		       (void *)_RET_IP_);
+		return NULL;
+	}
+
 	if (!sr->nvalue_table) {
-		dev_warn(&sr->pdev->dev, "%s: Missing ntarget value table\n",
-			__func__);
+		pr_err("%s: %s: Missing ntarget value table, caller %pF\n",
+		       __func__, sr->name, (void *)_RET_IP_);
 		return NULL;
 	}
 
 	for (i = 0; i < sr->nvalue_count; i++) {
-		if (sr->nvalue_table[i].efuse_offs == efuse_offs)
+		if (sr->nvalue_table[i].volt_nominal == volt)
 			return &sr->nvalue_table[i];
 	}
 
+	pr_err("%s: %s: Missing ntarget row entry, voltage (%u), caller %pF\n",
+	       __func__, sr->name, volt, (void *)_RET_IP_);
+
 	return NULL;
 }
-
-/* Public Functions */
 
 /**
  * sr_configure_errgen() - Configures the SmartReflex to perform AVS using the
@@ -577,7 +594,6 @@ int sr_configure_minmax(struct omap_sr *sr)
  */
 int sr_enable(struct omap_sr *sr, unsigned long volt)
 {
-	struct omap_volt_data *volt_data;
 	struct omap_sr_nvalue_table *nvalue_row;
 	int ret;
 
@@ -587,21 +603,9 @@ int sr_enable(struct omap_sr *sr, unsigned long volt)
 		return -EINVAL;
 	}
 
-	volt_data = omap_voltage_get_voltdata(sr->voltdm, volt);
-
-	if (IS_ERR(volt_data)) {
-		dev_warn(&sr->pdev->dev, "%s: Unable to get voltage table"
-			"for nominal voltage %ld\n", __func__, volt);
-		return PTR_ERR(volt_data);
-	}
-
-	nvalue_row = sr_retrieve_nvalue_row(sr, volt_data->sr_efuse_offs);
-
-	if (!nvalue_row) {
-		dev_warn(&sr->pdev->dev, "%s: failure getting SR data for this voltage %ld\n",
-			 __func__, volt);
+	nvalue_row = sr_retrieve_nvalue_row(sr, volt);
+	if (!nvalue_row)
 		return -ENODATA;
-	}
 
 	/* errminlimit is opp dependent and hence linked to voltage */
 	sr->err_minlimit = nvalue_row->errminlimit;

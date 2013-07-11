@@ -22,6 +22,7 @@
 				1008000 1375000
 			>;
 			clock-latency = <300000>; /* From legacy driver */
+			cpu0-supply = <&omap_twl6030_vcore1>;
 		};
 	};
 

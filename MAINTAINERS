@@ -1309,6 +1309,7 @@ W:	http://wiki.xilinx.com
 T:	git git://git.xilinx.com/linux-xlnx.git
 S:	Supported
 F:	arch/arm/mach-zynq/
+F:	drivers/cpuidle/cpuidle-zynq.c
 
 ARM64 PORT (AARCH64 ARCHITECTURE)
 M:	Catalin Marinas <catalin.marinas@arm.com>
@@ -2120,9 +2121,10 @@ M:	Mike Turquette <mturquette@linaro.org>
 L:	linux-arm-kernel@lists.infradead.org (same as CLK API & CLKDEV)
 T:	git git://git.linaro.org/people/mturquette/linux.git
 S:	Maintained
-F:	drivers/clk/clk.c
-F:	drivers/clk/clk-*
+F:	drivers/clk/
+X:	drivers/clk/clkdev.c
 F:	include/linux/clk-pr*
+F:	include/linux/clk/
 
 COMMON INTERNET FILE SYSTEM (CIFS)
 M:	Steve French <sfrench@samba.org>
@@ -2215,7 +2217,8 @@ M:	Viresh Kumar <viresh.kumar@linaro.org>
 L:	cpufreq@vger.kernel.org
 L:	linux-pm@vger.kernel.org
 S:	Maintained
-T:	git://git.kernel.org/pub/scm/linux/kernel/git/rafael/linux-pm.git
+T:	git git://git.kernel.org/pub/scm/linux/kernel/git/rafael/linux-pm.git
+T:	git git://git.linaro.org/people/vireshk/linux.git (For ARM Updates)
 F:	drivers/cpufreq/
 F:	include/linux/cpufreq.h
 
@@ -2516,7 +2519,7 @@ F:	drivers/usb/dwc3/
 DEVICE FREQUENCY (DEVFREQ)
 M:	MyungJoo Ham <myungjoo.ham@samsung.com>
 M:	Kyungmin Park <kyungmin.park@samsung.com>
-L:	linux-kernel@vger.kernel.org
+L:	linux-pm@vger.kernel.org
 S:	Maintained
 F:	drivers/devfreq/
 

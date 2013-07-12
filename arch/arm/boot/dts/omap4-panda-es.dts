@@ -7,8 +7,8 @@
  */
 /dts-v1/;
 
-/include/ "omap4460.dtsi"
-/include/ "omap4-panda-common.dtsi"
+#include "omap4460.dtsi"
+#include "omap4-panda-common.dtsi"
 
 /* Audio routing is differnet between PandaBoard4430 and PandaBoardES */
 &sound {
@@ -29,8 +29,71 @@
 /* PandaboardES has external pullups on SCL & SDA */
 &dss_hdmi_pins {
 	pinctrl-single,pins = <
-		0x5a 0x118	/* hdmi_cec.hdmi_cec INPUT PULLUP | MODE 0 */
-		0x5c 0x100	/* hdmi_scl.hdmi_scl INPUT | MODE 0 */
-		0x5e 0x100	/* hdmi_sda.hdmi_sda INPUT | MODE 0 */
+		0x5a (PIN_INPUT_PULLUP | MUX_MODE0)	/* hdmi_cec.hdmi_cec */
+		0x5c (PIN_INPUT | MUX_MODE0)		/* hdmi_scl.hdmi_scl */
+		0x5e (PIN_INPUT | MUX_MODE0)		/* hdmi_sda.hdmi_sda */
 		>;
+};
+
+&omap4_pmx_core {
+	led_gpio_pins: gpio_led_pmx {
+		pinctrl-single,pins = <
+			0xb6 (PIN_OUTPUT | MUX_MODE3)	/* gpio_110 */
+		>;
+	};
+};
+
+&led_wkgpio_pins {
+	pinctrl-single,pins = <
+		0x1c (PIN_OUTPUT | MUX_MODE3)	/* gpio_wk8 */
+	>;
+};
+
+&leds {
+	pinctrl-0 = <
+		&led_gpio_pins
+		&led_wkgpio_pins
+	>;
+
+	heartbeat {
+		gpios = <&gpio4 14 GPIO_ACTIVE_HIGH>;
+	};
+	mmc {
+		gpios = <&gpio1 8 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&omap_twl6030_vcore1 {
+	ti,vp = <&vp_core>;
+};
+
+&omap_twl6030_vcore2 {
+	ti,vp = <&vp_iva>;
+};
+
+&omap_twl6030_vcore3 {
+	/* We use TPS62361 on this platform instead */
+	status = "disabled";
+};
+
+#include "tps62361_omap.dtsi"
+
+&omap4_pmx_wkup {
+	tps62361_wkgpio_pins: pinmux_tps62361_wkpins {
+		pinctrl-single,pins = <
+			0x1a (PIN_OUTPUT | MUX_MODE3 | OFF_EN | OFFOUT_VAL) /* gpio_wk7 */
+		>;
+	};
+};
+
+&omap_tps62361 {
+	pinctrl-names = "default";
+	pinctrl-0 = <
+		&tps62361_wkgpio_pins
+	>;
+	gpios = <&gpio1 7 GPIO_ACTIVE_HIGH>;
+};
+
+&cpu0 {
+	cpu0-supply = <&omap_tps62361>;
 };

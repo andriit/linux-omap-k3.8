@@ -14,6 +14,10 @@
 	model = "TI OMAP4 SDP board";
 	compatible = "ti,omap4-sdp", "ti,omap4430", "ti,omap4";
 
+	chosen {
+		bootargs = "console=ttyO2,115200n8 omap_wdt.timer_margin=30 vmalloc=496M";
+	};
+
 	memory {
 		device_type = "memory";
 		reg = <0x80000000 0x40000000>; /* 1 GB */
@@ -304,6 +308,7 @@
 	clock-frequency = <400000>;
 
 	twl: twl@48 {
+		compatible = "ti,twl6030";
 		reg = <0x48>;
 		/* SPI = 0, IRQ# = 7, 4 = active high level-sensitive */
 		interrupts = <0 7 4>; /* IRQ_SYS_1N cascaded to gic */

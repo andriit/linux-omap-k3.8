@@ -20,6 +20,7 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
+#include <linux/power/smartreflex.h>
 
 static unsigned int transition_latency;
 static unsigned int voltage_tolerance; /* in percentage */
@@ -28,6 +29,8 @@ static struct device *cpu_dev;
 static struct clk *cpu_clk;
 static struct regulator *cpu_reg;
 static struct cpufreq_frequency_table *freq_table;
+
+static struct voltagedomain *vdd_mpu;
 
 static int cpu0_verify_speed(struct cpufreq_policy *policy)
 {
@@ -89,6 +92,8 @@ static int cpu0_set_target(struct cpufreq_policy *policy,
 		 freqs.old / 1000, volt_old ? volt_old / 1000 : -1,
 		 freqs.new / 1000, volt ? volt / 1000 : -1);
 
+	omap_sr_disable(vdd_mpu);
+
 	/* scaling up?  scale voltage before frequency */
 	if (cpu_reg && freqs.new > freqs.old) {
 		ret = regulator_set_voltage_tol(cpu_reg, volt, tol);
@@ -117,6 +122,8 @@ static int cpu0_set_target(struct cpufreq_policy *policy,
 			freqs.new = freqs.old;
 		}
 	}
+
+	omap_sr_enable(vdd_mpu, volt);
 
 post_notify:
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
@@ -186,6 +193,12 @@ static int cpu0_cpufreq_probe(struct platform_device *pdev)
 	for_each_child_of_node(parent, np) {
 		if (of_get_property(np, "operating-points", NULL))
 			break;
+	}
+
+	vdd_mpu = voltdm_lookup("mpu");
+	if (!vdd_mpu) {
+		pr_err("%s VDD MPU not found\n", __func__);
+		return -ENOENT;
 	}
 
 	if (!np) {

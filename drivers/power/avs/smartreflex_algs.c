@@ -1395,8 +1395,13 @@ static int sr_init_set_voltage_calibration(struct omap_sr *sr)
 	}
 
 	for (i = 0; i <  sr->nvalue_count; i++) {
-		sr->nvalue_table[i].volt_calibrated =
-			readl(efuse_base + sr->nvalue_table[i].efuse_offs);
+		u32 efused_volts[] = {
+			850000,
+			900000,
+			1100000,
+			1300000
+		};
+		sr->nvalue_table[i].volt_calibrated = efused_volts[i];
 	}
 
 	return 0;

@@ -121,8 +121,27 @@ static irqreturn_t sr_interrupt(int irq, void *data)
 		return IRQ_NONE;
 	}
 
-	if (sr_class->notify)
-		sr_class->notify(sr_info, status);
+	/* Attempt some resemblance of recovery! */
+	if (!status) {
+		dev_err(&sr_info->pdev->dev,
+			"%s: Spurious interrupt!status = 0x%08x."
+			"Disabling to prevent spamming!!\n",
+			__func__, status);
+		disable_irq_nosync(sr_info->irq);
+	} else {
+		/*
+		 * If the notifier does not exist OR reports inability to
+		 * handle, disable as well
+		 */
+		if (!sr_class->notify ||
+		    sr_class->notify(sr_info, status)) {
+			dev_err(&sr_info->pdev->dev,
+				"%s: Callback cant handle int status=0x%08x."
+				"Disabling to prevent spam!!\n",
+				__func__, status);
+			disable_irq_nosync(sr_info->irq);
+		}
+	}
 
 	return IRQ_HANDLED;
 }
@@ -291,12 +310,12 @@ static void sr_v2_disable(struct omap_sr *sr)
 	else
 		sr_modify_reg(sr, ERRCONFIG_V2, ERRCONFIG_VPBOUNDINTEN_V2,
 				0x0);
-	sr_write_reg(sr, IRQENABLE_CLR, (IRQENABLE_MCUACCUMINT |
-			IRQENABLE_MCUVALIDINT |
-			IRQENABLE_MCUBOUNDSINT));
 	sr_write_reg(sr, IRQSTATUS, (IRQSTATUS_MCUACCUMINT |
 			IRQSTATUS_MCVALIDINT |
 			IRQSTATUS_MCBOUNDSINT));
+	sr_write_reg(sr, IRQENABLE_CLR, (IRQENABLE_MCUACCUMINT |
+			IRQENABLE_MCUVALIDINT |
+			IRQENABLE_MCUBOUNDSINT));
 
 	/*
 	 * Wait for SR to be disabled.
@@ -311,8 +330,8 @@ static void sr_v2_disable(struct omap_sr *sr)
 			__func__);
 
 	/* Disable MCUDisableAcknowledge interrupt & clear pending interrupt */
-	sr_write_reg(sr, IRQENABLE_CLR, IRQENABLE_MCUDISABLEACKINT);
 	sr_write_reg(sr, IRQSTATUS, IRQSTATUS_MCUDISABLEACKINT);
+	sr_write_reg(sr, IRQENABLE_CLR, IRQENABLE_MCUDISABLEACKINT);
 }
 
 static struct omap_sr_nvalue_table *sr_retrieve_nvalue_row(

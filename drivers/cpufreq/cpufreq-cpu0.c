@@ -96,7 +96,7 @@ static int cpu0_set_target(struct cpufreq_policy *policy,
 
 	/* scaling up?  scale voltage before frequency */
 	if (cpu_reg && freqs.new > freqs.old) {
-		ret = regulator_set_voltage_tol(cpu_reg, volt, tol);
+		ret = omap_sr_set_voltage(vdd_mpu, volt, tol);
 		if (ret) {
 			pr_err("failed to scale voltage up: %d\n", ret);
 			freqs.new = freqs.old;
@@ -108,14 +108,14 @@ static int cpu0_set_target(struct cpufreq_policy *policy,
 	if (ret) {
 		pr_err("failed to set clock rate: %d\n", ret);
 		if (cpu_reg)
-			regulator_set_voltage_tol(cpu_reg, volt_old, tol);
+			omap_sr_set_voltage(vdd_mpu, volt, tol);
 		freqs.new = freqs.old;
 		goto post_notify;
 	}
 
 	/* scaling down?  scale voltage after frequency */
 	if (cpu_reg && freqs.new < freqs.old) {
-		ret = regulator_set_voltage_tol(cpu_reg, volt, tol);
+		ret = omap_sr_set_voltage(vdd_mpu, volt, tol);
 		if (ret) {
 			pr_err("failed to scale voltage down: %d\n", ret);
 			clk_set_rate(cpu_clk, freqs.old * 1000);

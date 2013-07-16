@@ -352,6 +352,8 @@ struct omap_sr_data {
 };
 
 /* Smartreflex module enable/disable interface */
+int omap_sr_set_voltage(struct voltagedomain *voltdm,
+			unsigned long volt, unsigned long tol);
 void omap_sr_enable(struct voltagedomain *voltdm,
 		    unsigned long voltage);
 void omap_sr_disable(struct voltagedomain *voltdm);
@@ -392,6 +394,11 @@ sr_volt_reset_pfunc
 __init sr_get_volt_reset_func(struct omap_sr *sr);
 
 #else
+static inline int omap_sr_set_voltage(struct voltagedomain *voltdm,
+			unsigned long volt, unsigned long tol)
+{
+	return 0;
+}
 static inline void omap_sr_enable(struct voltagedomain *voltdm,
 				  unsigned long voltage) {}
 static inline void omap_sr_disable(struct voltagedomain *voltdm) {}

@@ -934,6 +934,31 @@ int sr_notifier_control(struct omap_sr *sr, bool enable)
 	return 0;
 }
 
+int omap_sr_set_voltage(struct voltagedomain *voltdm,
+			unsigned long volt, unsigned long tol)
+{
+	struct omap_sr *sr = _sr_lookup(voltdm);
+	struct omap_sr_nvalue_table *nvalue_row;
+	unsigned long volt_calib = volt;
+
+	if (IS_ERR(sr) || IS_ERR(sr->reg_supply)) {
+		pr_err("%s: supply regulator is not ready\n", __func__);
+		return -EINVAL;
+	}
+
+	nvalue_row = sr_retrieve_nvalue_row(sr, volt);
+	if (!nvalue_row) {
+		pr_err("%s %s: failure getting SR data for this voltage %ld\n",
+			 __func__, sr->name, volt);
+		return -ENODATA;
+	}
+
+	if (nvalue_row->volt_calibrated)
+		volt_calib = nvalue_row->volt_calibrated;
+
+	return regulator_set_voltage_tol(sr->reg_supply, volt_calib, tol);
+}
+
 /**
  * omap_sr_enable() -  API to enable SR clocks and to call into the
  *			registered smartreflex class enable API.

@@ -42,6 +42,7 @@ static unsigned int cpu0_get_speed(unsigned int cpu)
 	return clk_get_rate(cpu_clk) / 1000;
 }
 
+extern struct mutex dvfs_lock;
 static int cpu0_set_target(struct cpufreq_policy *policy,
 			   unsigned int target_freq, unsigned int relation)
 {
@@ -92,6 +93,7 @@ static int cpu0_set_target(struct cpufreq_policy *policy,
 		 freqs.old / 1000, volt_old ? volt_old / 1000 : -1,
 		 freqs.new / 1000, volt ? volt / 1000 : -1);
 
+	mutex_lock(&dvfs_lock);
 	omap_sr_disable(vdd_mpu);
 
 	/* scaling up?  scale voltage before frequency */
@@ -124,6 +126,7 @@ static int cpu0_set_target(struct cpufreq_policy *policy,
 	}
 
 	omap_sr_enable(vdd_mpu, volt);
+	mutex_unlock(&dvfs_lock);
 
 post_notify:
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);

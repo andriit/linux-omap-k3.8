@@ -1402,6 +1402,7 @@ static int omap_sr_autocomp_show(void *data, u64 *val)
 	return 0;
 }
 
+extern struct mutex dvfs_lock;
 static int omap_sr_autocomp_store(void *data, u64 val)
 {
 	struct omap_sr *sr_info = data;
@@ -1419,10 +1420,12 @@ static int omap_sr_autocomp_store(void *data, u64 val)
 
 	/* control enable/disable only if there is a delta in value */
 	if (sr_info->autocomp_active != val) {
+		mutex_lock(&dvfs_lock);
 		if (!val)
 			sr_stop_vddautocomp(sr_info);
 		else
 			sr_start_vddautocomp(sr_info);
+		mutex_unlock(&dvfs_lock);
 	}
 
 	return 0;

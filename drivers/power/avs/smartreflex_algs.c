@@ -34,7 +34,7 @@
 #define SR_PERIODIC_MAX_CHECK_VPTRANS_US	20
 
 /* TODO: mutex should be defined by OPP scaling function */
-static DEFINE_MUTEX(dvfs_lock);
+DEFINE_MUTEX(dvfs_lock);
 
 /**
  * struct sr_periodic_calib_data - data to be used by periodic work

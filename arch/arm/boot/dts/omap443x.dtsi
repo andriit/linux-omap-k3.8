@@ -32,7 +32,6 @@
 		reg-names = "base-address", "efuse-address";
 		#address-cells = <1>;
 		#size-cells = <1>;
-		interrupts = <0 18 0x4>;
 		ti,hwmods = "smartreflex_mpu";
 		ti,voltdm_name = "mpu";
 		ti,ip_type = <0x2>;
@@ -45,12 +44,10 @@
 		ti,senp_avgweight = <0x3>;
 		ti,calibration_volt = <0x1>;
 		ti,calibration_period = <0x3>;
-		ti,calibration_loop = <0x2>;
-		ti,notify_flags = <0x4>;
+		ti,calibration_loop = <0x1>;
 		ti,fuse_len_24bits;
 		ti,autocomp_active;
 		ti,boot_voltage = <1200000>;
-		ti,pmic_step_uv = <12660>;
 		ti,avs_info = <
 		/* uV	efuse	errminlimit errgain	volt_margin*/
 		1025000	0x0	0xf4		0x0c	0
